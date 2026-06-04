@@ -56,15 +56,15 @@ jobs:
       - name: Format check
         run: terraform fmt -check -recursive
 
-      - name: Lint (tflint)
-        uses: terraform-linters/setup-tflint@v4
+      - name: Lint
+        uses: terraform-linters/setup-tflint@v6.2.0
       - run: tflint --init && tflint --recursive
 
       - name: Validate
         run: terraform init -backend=false && terraform validate
 
-      - name: Security scan (trivy)
-        uses: aquasecurity/trivy-action@0.28.0
+      - name: Security scan
+        uses: aquasecurity/trivy-action@0.36.0
         with:
           scan-type: config
           hide-progress: true
