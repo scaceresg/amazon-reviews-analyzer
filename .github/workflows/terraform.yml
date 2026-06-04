@@ -49,24 +49,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
       - name: Format check
         run: terraform fmt -check -recursive
 
-      - name: tflint
+      - name: Lint (tflint)
         uses: terraform-linters/setup-tflint@v4
-      - run: tflint --init && tflint
+      - run: tflint --init && tflint --recursive
 
       - name: Validate
         run: terraform init -backend=false && terraform validate
 
-      - name: Security (tfsec)
-        uses: aquasecurity/tfsec-action@v1.0.0
+      - name: Security scan (trivy)
+        uses: aquasecurity/trivy-action@0.28.0
         with:
-          working_directory: terraform
+          scan-type: config
+          hide-progress: true
+          exit-code: 1
+          severity: HIGH,CRITICAL
 
   plan:
     needs: [resolve-env, checks]
@@ -76,7 +79,7 @@ jobs:
         working-directory: terraform
     steps:
       - uses: actions/checkout@v4
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: ${{ env.TF_VERSION }}
       - uses: aws-actions/configure-aws-credentials@v4
@@ -101,7 +104,7 @@ jobs:
         working-directory: terraform
     steps:
       - uses: actions/checkout@v4
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: ${{ env.TF_VERSION }}
       - uses: aws-actions/configure-aws-credentials@v4
