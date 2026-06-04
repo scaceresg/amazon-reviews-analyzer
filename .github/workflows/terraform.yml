@@ -23,7 +23,7 @@ permissions:
 env:
   TF_VERSION: ${{ vars.TF_VERSION }}
   AWS_REGION: ${{ vars.AWS_REGION }}
-  TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+  TF_STATE_BUCKET: ${{ secrets.TF_STATE_BUCKET }}
 
 jobs:
   # Map branch to Terraform workspace: dev (feature/*, development) | prod (master, hotfix/*).
@@ -81,7 +81,7 @@ jobs:
           terraform_version: ${{ env.TF_VERSION }}
       - uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          role-to-assume: ${{ secrets.AWS_INFRA_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
       - name: Init
         run: terraform init -backend-config="bucket=${TF_STATE_BUCKET}"
@@ -106,7 +106,7 @@ jobs:
           terraform_version: ${{ env.TF_VERSION }}
       - uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          role-to-assume: ${{ secrets.AWS_INFRA_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
       - name: Init
         run: terraform init -backend-config="bucket=${TF_STATE_BUCKET}"

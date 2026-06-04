@@ -137,16 +137,16 @@ Configurar en **Settings → Secrets and variables → Variables → New reposit
 | --- | --- | --- |
 | `AWS_REGION` | `us-east-1` | `terraform.yml`, `python-services.yml` |
 | `TF_VERSION` | `1.10.5` | `terraform.yml` |
-| `TF_STATE_BUCKET` | `my-org-tfstate` | `terraform.yml` (init del backend) |
 | `PYTHON_VERSION` | `3.12` | `python-services.yml` |
 | `ECR_REPOSITORY` | `amazon-reviews-analyzer-ingestion` | `python-services.yml` |
 | `DATALAKE_BUCKET_PREFIX` | `amazon-reviews-analyzer` | `python-services.yml` (upload de scripts) |
 
-Y el siguiente **GitHub Secret** (Settings → Secrets and variables → Secrets):
+Y los siguientes **GitHub Secrets** (Settings → Secrets and variables → Secrets):
 
 | Secret | Descripción |
 | --- | --- |
-| `AWS_OIDC_ROLE_ARN` | ARN del rol IAM federado con OIDC para GitHub Actions |
+| `AWS_INFRA_ROLE_ARN` | ARN del rol IAM federado con OIDC para levantar infra y servicios AWS |
+| `TF_STATE_BUCKET` | Nombre del bucket S3 compartido para los tfstates |
 
 ### Workflow `terraform.yml`
 
