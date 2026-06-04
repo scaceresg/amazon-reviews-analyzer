@@ -1,0 +1,31 @@
+[project]
+name = "amazon-reviews-analyzer"
+version = "0.1.0"
+description = "Plataforma de analítica de Amazon Reviews'23 en AWS (ingesta, ETL, LLM, dashboard)."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "boto3>=1.34",
+    "pyyaml>=6.0",
+    "huggingface_hub>=0.23",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.6",
+    "pip-audit>=2.7",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "W"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["amazon_reviews_analyzer"]

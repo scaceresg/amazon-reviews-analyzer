@@ -1,0 +1,28 @@
+# Environment configuration template. Copy to dev.yaml or prod.yaml and adjust.
+# Any key can be overridden at runtime via an environment variable of the same
+# name in uppercase (e.g. DATALAKE_BUCKET=... overrides datalake_bucket).
+
+aws_region: us-east-1
+
+# Amazon Reviews'23 categories to ingest (MVP: a few small ones).
+categories:
+  - All_Beauty
+  - Gift_Cards
+  - Magazine_Subscriptions
+
+# S3 bucket names (outputs from Terraform: module.s3_lake.*).
+# Medallion zones are prefixes inside datalake_bucket.
+datalake_bucket: amazon-reviews-analyzer-dev-datalake
+athena_results_bucket: amazon-reviews-analyzer-dev-athena-results
+
+# Prefix paths inside datalake_bucket.
+bronze_prefix: bronze/
+silver_prefix: silver/
+gold_prefix: gold/
+scripts_prefix: scripts/
+
+# Bedrock batch inference model.
+bedrock_model_id: amazon.nova-lite-v1:0
+
+# Glue Data Catalog database name.
+glue_database: amazon_reviews_analyzer_dev

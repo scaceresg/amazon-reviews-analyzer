@@ -1,0 +1,117 @@
+name: terraform
+
+on:
+  pull_request:
+    paths:
+      - "terraform/**"
+      - ".github/workflows/terraform.yml"
+  push:
+    branches:
+      - development
+      - master
+      - "feature/**"
+      - "hotfix/**"
+    paths:
+      - "terraform/**"
+      - ".github/workflows/terraform.yml"
+
+permissions:
+  id-token: write   # OIDC to AWS
+  contents: read
+  pull-requests: write
+
+env:
+  TF_VERSION: "1.10.5"
+  AWS_REGION: "us-east-1"
+  # tfstate bucket created manually from the AWS console UI; passed at init time.
+  TF_STATE_BUCKET: "amazon-reviews-analyzer-tfstate"
+
+jobs:
+  # Map branch to Terraform workspace: dev (feature/*, development) | prod (master, hotfix/*).
+  resolve-env:
+    runs-on: ubuntu-latest
+    outputs:
+      workspace: ${{ steps.map.outputs.workspace }}
+    steps:
+      - id: map
+        run: |
+          REF="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+          case "$REF" in
+            master|hotfix/*) echo "workspace=prod" >> "$GITHUB_OUTPUT" ;;
+            *)               echo "workspace=dev"  >> "$GITHUB_OUTPUT" ;;
+          esac
+
+  checks:
+    needs: resolve-env
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Format check
+        run: terraform fmt -check -recursive
+
+      - name: tflint
+        uses: terraform-linters/setup-tflint@v4
+      - run: tflint --init && tflint
+
+      - name: Validate
+        run: terraform init -backend=false && terraform validate
+
+      - name: Security (tfsec)
+        uses: aquasecurity/tfsec-action@v1.0.0
+        with:
+          working_directory: terraform
+
+  plan:
+    needs: [resolve-env, checks]
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Init
+        run: terraform init -backend-config="bucket=${TF_STATE_BUCKET}"
+      - name: Select workspace
+        run: terraform workspace select -or-create ${{ needs.resolve-env.outputs.workspace }}
+      - name: Plan
+        run: terraform plan -var-file="environments/${{ needs.resolve-env.outputs.workspace }}.tfvars"
+
+  # Manual apply: only on push (after merge), gated by a GitHub Environment with required reviewers.
+  apply:
+    needs: [resolve-env, plan]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: ${{ needs.resolve-env.outputs.workspace }}
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Init
+        run: terraform init -backend-config="bucket=${TF_STATE_BUCKET}"
+      - name: Select workspace
+        run: terraform workspace select -or-create ${{ needs.resolve-env.outputs.workspace }}
+      - name: Apply
+        run: terraform apply -auto-approve -var-file="environments/${{ needs.resolve-env.outputs.workspace }}.tfvars"
