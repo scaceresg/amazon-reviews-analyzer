@@ -22,7 +22,6 @@ permissions:
   contents: read
 
 env:
-  AWS_REGION: ${{ vars.AWS_REGION }}
   ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
   DATALAKE_BUCKET_PREFIX: ${{ vars.DATALAKE_BUCKET_PREFIX }}
 
@@ -40,7 +39,7 @@ jobs:
             *)               echo "env=dev"  >> "$GITHUB_OUTPUT" ;;
           esac
 
-  quality:
+  quality-checks:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -54,12 +53,22 @@ jobs:
         run: uv run ruff format --check .
       - name: Ruff lint
         run: uv run ruff check .
+
+  security-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v8.2.0
+        with:
+          python-version: ${{ vars.PYTHON_VERSION }}
+      - name: Install deps
+        run: uv sync --all-extras --dev
       - name: Security audit
         run: uv run pip-audit
 
-  # Manual build & deploy: only on push (after merge), gated by a GitHub Environment.
   deploy:
-    needs: [resolve-env, quality]
+    needs: [resolve-env, quality-checks, security-audit]
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     environment: ${{ needs.resolve-env.outputs.env }}
@@ -68,7 +77,7 @@ jobs:
       - uses: aws-actions/configure-aws-credentials@v6.2.0
         with:
           role-to-assume: ${{ secrets.AWS_INFRA_ROLE_ARN }}
-          aws-region: ${{ env.AWS_REGION }}
+          aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Login to ECR
         id: ecr
