@@ -127,7 +127,26 @@ GitHub Actions con autenticación **OIDC** hacia AWS (sin llaves de larga vida).
 | `master`, `hotfix/*` | **prod** | manual tras merge |
 
 - El **`terraform apply` siempre es manual**: se ejecuta tras el merge mediante **GitHub Environments** con *required reviewers* (gate de aprobación).
-- El bucket de tfstate se pasa con `-backend-config` en `terraform init`; no está hardcodeado en el código.
+- Ningún nombre de bucket ni configuración de infraestructura está hardcodeado en el código. Se usan **GitHub Repository Variables** (no secretos) para valores no sensibles.
+
+### GitHub Repository Variables requeridas
+
+Configurar en **Settings → Secrets and variables → Variables → New repository variable**:
+
+| Variable | Ejemplo | Usado en |
+| --- | --- | --- |
+| `AWS_REGION` | `us-east-1` | `terraform.yml`, `python-services.yml` |
+| `TF_VERSION` | `1.10.5` | `terraform.yml` |
+| `PYTHON_VERSION` | `3.12` | `python-services.yml` |
+| `ECR_REPOSITORY` | `amazon-reviews-analyzer-ingestion` | `python-services.yml` |
+| `DATALAKE_BUCKET_PREFIX` | `amazon-reviews-analyzer` | `python-services.yml` (upload de scripts) |
+
+Y los siguientes **GitHub Secrets** (Settings → Secrets and variables → Secrets):
+
+| Secret | Descripción |
+| --- | --- |
+| `AWS_INFRA_ROLE_ARN` | ARN del rol IAM federado con OIDC para levantar infra y servicios AWS |
+| `TF_STATE_BUCKET` | Nombre del bucket S3 compartido para los tfstates |
 
 ### Workflow `terraform.yml`
 

@@ -21,10 +21,7 @@ permissions:
   pull-requests: write
 
 env:
-  TF_VERSION: "1.10.5"
-  AWS_REGION: "us-east-1"
-  # tfstate bucket created manually from the AWS console UI; passed at init time.
-  TF_STATE_BUCKET: "amazon-reviews-analyzer-tfstate"
+  TF_STATE_BUCKET: ${{ secrets.TF_STATE_BUCKET }}
 
 jobs:
   # Map branch to Terraform workspace: dev (feature/*, development) | prod (master, hotfix/*).
@@ -48,26 +45,24 @@ jobs:
       run:
         working-directory: terraform
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: hashicorp/setup-terraform@v3
+      - uses: actions/checkout@v6
+      - uses: hashicorp/setup-terraform@v4
         with:
-          terraform_version: ${{ env.TF_VERSION }}
-
+          terraform_version: ${{ vars.TF_VERSION }}
       - name: Format check
         run: terraform fmt -check -recursive
-
-      - name: tflint
-        uses: terraform-linters/setup-tflint@v4
-      - run: tflint --init && tflint
-
+      - name: Lint
+        uses: terraform-linters/setup-tflint@v6.2.0
+      - run: tflint --init && tflint --recursive
       - name: Validate
         run: terraform init -backend=false && terraform validate
-
-      - name: Security (tfsec)
-        uses: aquasecurity/tfsec-action@v1.0.0
+      - name: Security scan
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
-          working_directory: terraform
+          scan-type: config
+          hide-progress: true
+          exit-code: 1
+          severity: HIGH,CRITICAL
 
   plan:
     needs: [resolve-env, checks]
@@ -76,14 +71,14 @@ jobs:
       run:
         working-directory: terraform
     steps:
-      - uses: actions/checkout@v4
-      - uses: hashicorp/setup-terraform@v3
+      - uses: actions/checkout@v6
+      - uses: hashicorp/setup-terraform@v4
         with:
-          terraform_version: ${{ env.TF_VERSION }}
-      - uses: aws-actions/configure-aws-credentials@v4
+          terraform_version: ${{ vars.TF_VERSION }}
+      - uses: aws-actions/configure-aws-credentials@v6.2.0
         with:
-          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
-          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_INFRA_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
       - name: Init
         run: terraform init -backend-config="bucket=${TF_STATE_BUCKET}"
       - name: Select workspace
@@ -101,14 +96,14 @@ jobs:
       run:
         working-directory: terraform
     steps:
-      - uses: actions/checkout@v4
-      - uses: hashicorp/setup-terraform@v3
+      - uses: actions/checkout@v6
+      - uses: hashicorp/setup-terraform@v4
         with:
-          terraform_version: ${{ env.TF_VERSION }}
-      - uses: aws-actions/configure-aws-credentials@v4
+          terraform_version: ${{ vars.TF_VERSION }}
+      - uses: aws-actions/configure-aws-credentials@v6.2.0
         with:
-          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
-          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_INFRA_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
       - name: Init
         run: terraform init -backend-config="bucket=${TF_STATE_BUCKET}"
       - name: Select workspace
