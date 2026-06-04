@@ -1,0 +1,40 @@
+---
+description: Amazon Reviews Analyzer — project conventions and architecture context
+alwaysApply: true
+---
+
+# Amazon Reviews Analyzer
+
+Read `CLAUDE.md` at the repo root for the full project context before making changes.
+
+## Non-negotiable conventions
+
+- **English only**: all code, comments, docstrings, commit messages, and documentation.
+- **Python 3.12 + uv**: format with `ruff format`, lint with `ruff check`, audit with `pip-audit`.
+- **Stubs**: all functions in `etl/`, `llm/`, and `ingestion/download.py` raise `NotImplementedError`. Implement them incrementally; do not remove the stub pattern until the real logic is ready.
+- **No hardcoded bucket names or credentials**: tfstate bucket always via `-backend-config`; AWS credentials via OIDC in CI.
+
+## Terraform rules
+
+- `terraform/providers.tf` is the single file for `terraform {}`, `backend "s3"`, and `provider "aws"`. Do **not** split into `backend.tf` / `versions.tf`.
+- No root `outputs.tf`; workspace is referenced via `local.name_prefix` in `main.tf`.
+- Two S3 buckets per workspace: `<prefix>-datalake` (medallion prefixes) and `<prefix>-athena-results`.
+
+## S3 prefix layout
+
+```
+<prefix>-datalake/
+  bronze/    # raw HuggingFace jsonl.gz
+  silver/    # clean Parquet (Glue job)
+  gold/      # aggregates + LLM enrichment (Glue merge job)
+  scripts/   # Glue job scripts and LLM artefacts (deployed by CI)
+```
+
+## Workflow → environment mapping
+
+| Branch | Terraform workspace |
+| --- | --- |
+| `feature/*`, `development` | `dev` |
+| `master`, `hotfix/*` | `prod` |
+
+Apply is always manual (GitHub Environments gate).

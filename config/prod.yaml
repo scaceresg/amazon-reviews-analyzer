@@ -1,0 +1,18 @@
+aws_region: us-east-1
+
+categories:
+  - All_Beauty
+  - Gift_Cards
+  - Magazine_Subscriptions
+  - Health_and_Personal_Care
+
+datalake_bucket: amazon-reviews-analyzer-prod-datalake
+athena_results_bucket: amazon-reviews-analyzer-prod-athena-results
+
+bronze_prefix: bronze/
+silver_prefix: silver/
+gold_prefix: gold/
+scripts_prefix: scripts/
+
+bedrock_model_id: amazon.nova-lite-v1:0
+glue_database: amazon_reviews_analyzer_prod

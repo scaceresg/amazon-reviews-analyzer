@@ -1,0 +1,91 @@
+name: python-services
+
+on:
+  pull_request:
+    paths:
+      - "amazon_reviews_analyzer/**"
+      - "pyproject.toml"
+      - ".github/workflows/python-services.yml"
+  push:
+    branches:
+      - development
+      - master
+      - "feature/**"
+      - "hotfix/**"
+    paths:
+      - "amazon_reviews_analyzer/**"
+      - "pyproject.toml"
+      - ".github/workflows/python-services.yml"
+
+permissions:
+  id-token: write   # OIDC to AWS
+  contents: read
+
+env:
+  AWS_REGION: "us-east-1"
+  ECR_REPOSITORY: "amazon-reviews-analyzer-ingestion"
+
+jobs:
+  resolve-env:
+    runs-on: ubuntu-latest
+    outputs:
+      env: ${{ steps.map.outputs.env }}
+    steps:
+      - id: map
+        run: |
+          REF="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+          case "$REF" in
+            master|hotfix/*) echo "env=prod" >> "$GITHUB_OUTPUT" ;;
+            *)               echo "env=dev"  >> "$GITHUB_OUTPUT" ;;
+          esac
+
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - name: Install deps
+        run: uv sync --all-extras --dev
+      - name: Format check (ruff)
+        run: uv run ruff format --check .
+      - name: Lint (ruff)
+        run: uv run ruff check .
+      - name: Security audit (pip-audit)
+        run: uv run pip-audit
+
+  # Manual build & deploy: only on push (after merge), gated by a GitHub Environment.
+  deploy:
+    needs: [resolve-env, quality]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: ${{ needs.resolve-env.outputs.env }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build & push ingestion image
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+          ENV: ${{ needs.resolve-env.outputs.env }}
+        run: |
+          IMAGE="$REGISTRY/$ECR_REPOSITORY:$ENV-${GITHUB_SHA::7}"
+          docker build -f amazon_reviews_analyzer/ingestion/Dockerfile -t "$IMAGE" .
+          docker push "$IMAGE"
+
+      - name: Upload Glue scripts & LLM artifacts to S3
+        env:
+          ENV: ${{ needs.resolve-env.outputs.env }}
+        run: |
+          DATALAKE_BUCKET="amazon-reviews-analyzer-${ENV}-datalake"
+          aws s3 sync amazon_reviews_analyzer/etl "s3://${DATALAKE_BUCKET}/scripts/etl/"
+          aws s3 sync amazon_reviews_analyzer/llm "s3://${DATALAKE_BUCKET}/scripts/llm/"
