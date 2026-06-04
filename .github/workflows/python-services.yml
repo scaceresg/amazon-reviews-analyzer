@@ -22,11 +22,8 @@ permissions:
   contents: read
 
 env:
-  AWS_REGION: "us-east-1"
-  ECR_REPOSITORY: "amazon-reviews-analyzer-ingestion"
-  # Datalake bucket name prefix. Set as a GitHub Repository Variable
-  # (Settings → Secrets and variables → Variables → DATALAKE_BUCKET_PREFIX).
-  # Full bucket name: <prefix>-<env>-datalake (e.g. amazon-reviews-analyzer-dev-datalake).
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
   DATALAKE_BUCKET_PREFIX: ${{ vars.DATALAKE_BUCKET_PREFIX }}
 
 jobs:
@@ -50,7 +47,7 @@ jobs:
       - name: Setup uv
         uses: astral-sh/setup-uv@v5
         with:
-          python-version: "3.12"
+          python-version: ${{ vars.PYTHON_VERSION }}
       - name: Install deps
         run: uv sync --all-extras --dev
       - name: Format check (ruff)

@@ -135,7 +135,11 @@ Configurar en **Settings → Secrets and variables → Variables → New reposit
 
 | Variable | Ejemplo | Usado en |
 | --- | --- | --- |
+| `AWS_REGION` | `us-east-1` | `terraform.yml`, `python-services.yml` |
+| `TF_VERSION` | `1.10.5` | `terraform.yml` |
 | `TF_STATE_BUCKET` | `my-org-tfstate` | `terraform.yml` (init del backend) |
+| `PYTHON_VERSION` | `3.12` | `python-services.yml` |
+| `ECR_REPOSITORY` | `amazon-reviews-analyzer-ingestion` | `python-services.yml` |
 | `DATALAKE_BUCKET_PREFIX` | `amazon-reviews-analyzer` | `python-services.yml` (upload de scripts) |
 
 Y el siguiente **GitHub Secret** (Settings → Secrets and variables → Secrets):
