@@ -3,7 +3,9 @@ SHELL := /bin/bash
 
 ENV ?= dev
 TF_DIR := terraform
-TF_STATE_BUCKET ?= my-org-tfstate
+# TF_STATE_BUCKET must be exported as an environment variable — no default to avoid
+# committing bucket names. Example: export TF_STATE_BUCKET=my-org-tfstate
+TF_STATE_BUCKET ?= $(error TF_STATE_BUCKET is not set. Export it first: export TF_STATE_BUCKET=<bucket-name>)
 
 .PHONY: help
 help: ## Show this help message

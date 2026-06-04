@@ -127,7 +127,22 @@ GitHub Actions con autenticación **OIDC** hacia AWS (sin llaves de larga vida).
 | `master`, `hotfix/*` | **prod** | manual tras merge |
 
 - El **`terraform apply` siempre es manual**: se ejecuta tras el merge mediante **GitHub Environments** con *required reviewers* (gate de aprobación).
-- El bucket de tfstate se pasa con `-backend-config` en `terraform init`; no está hardcodeado en el código.
+- Ningún nombre de bucket ni configuración de infraestructura está hardcodeado en el código. Se usan **GitHub Repository Variables** (no secretos) para valores no sensibles.
+
+### GitHub Repository Variables requeridas
+
+Configurar en **Settings → Secrets and variables → Variables → New repository variable**:
+
+| Variable | Ejemplo | Usado en |
+| --- | --- | --- |
+| `TF_STATE_BUCKET` | `my-org-tfstate` | `terraform.yml` (init del backend) |
+| `DATALAKE_BUCKET_PREFIX` | `amazon-reviews-analyzer` | `python-services.yml` (upload de scripts) |
+
+Y el siguiente **GitHub Secret** (Settings → Secrets and variables → Secrets):
+
+| Secret | Descripción |
+| --- | --- |
+| `AWS_OIDC_ROLE_ARN` | ARN del rol IAM federado con OIDC para GitHub Actions |
 
 ### Workflow `terraform.yml`
 

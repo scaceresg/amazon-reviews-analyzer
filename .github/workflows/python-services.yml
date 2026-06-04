@@ -24,6 +24,10 @@ permissions:
 env:
   AWS_REGION: "us-east-1"
   ECR_REPOSITORY: "amazon-reviews-analyzer-ingestion"
+  # Datalake bucket name prefix. Set as a GitHub Repository Variable
+  # (Settings → Secrets and variables → Variables → DATALAKE_BUCKET_PREFIX).
+  # Full bucket name: <prefix>-<env>-datalake (e.g. amazon-reviews-analyzer-dev-datalake).
+  DATALAKE_BUCKET_PREFIX: ${{ vars.DATALAKE_BUCKET_PREFIX }}
 
 jobs:
   resolve-env:
@@ -86,6 +90,6 @@ jobs:
         env:
           ENV: ${{ needs.resolve-env.outputs.env }}
         run: |
-          DATALAKE_BUCKET="amazon-reviews-analyzer-${ENV}-datalake"
+          DATALAKE_BUCKET="${DATALAKE_BUCKET_PREFIX}-${ENV}-datalake"
           aws s3 sync amazon_reviews_analyzer/etl "s3://${DATALAKE_BUCKET}/scripts/etl/"
           aws s3 sync amazon_reviews_analyzer/llm "s3://${DATALAKE_BUCKET}/scripts/llm/"
