@@ -138,13 +138,18 @@ make build ENV=dev   # build ingestion image
 
 ## Terraform init command
 
-The tfstate bucket is **not** in code — always pass it explicitly:
+The tfstate bucket is **not** in code — always pass it explicitly. The bucket is shared
+across projects; states are isolated by `workspace_key_prefix = "amazon-reviews-analyzer"`:
 
 ```bash
 cd terraform
-terraform init -backend-config="bucket=amazon-reviews-analyzer-tfstate-<account_id>"
+terraform init -backend-config="bucket=<shared-tfstate-bucket>"
 terraform workspace select dev   # or prod
 ```
+
+State paths inside the bucket:
+- `amazon-reviews-analyzer/dev/terraform.tfstate`
+- `amazon-reviews-analyzer/prod/terraform.tfstate`
 
 ## MVP categories (start small, scale up)
 

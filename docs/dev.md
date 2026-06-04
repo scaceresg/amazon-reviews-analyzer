@@ -18,15 +18,27 @@ Documentación técnica del proyecto Amazon Reviews Analyzer: despliegue de infr
 
 ### 0. Backend de Terraform (manual, una sola vez)
 
-Crear desde la **consola UI de AWS** un bucket S3 para el estado de Terraform (p. ej. `amazon-reviews-analyzer-tfstate-<account_id>`), con versioning y bloqueo de acceso público activados.
+Crear desde la **consola UI de AWS** un bucket S3 compartido entre proyectos (p. ej. `my-org-tfstate-<account_id>`), con versioning y bloqueo de acceso público activados.
 
 El bucket **no está hardcodeado** en el código; se pasa en el momento del `init` con `-backend-config`:
 
 ```bash
-terraform init -backend-config="bucket=amazon-reviews-analyzer-tfstate-<account_id>"
+terraform init -backend-config="bucket=<bucket-name>"
 ```
 
 El backend usa **bloqueo nativo de S3** (`use_lockfile = true`, Terraform >= 1.10), por lo que **no se requiere DynamoDB**.
+
+Los estados quedan organizados por proyecto y workspace dentro del bucket:
+
+```
+<bucket>/
+  amazon-reviews-analyzer/
+    dev/terraform.tfstate    ← workspace dev
+    prod/terraform.tfstate   ← workspace prod
+  otro-proyecto/
+    dev/terraform.tfstate
+    prod/terraform.tfstate
+```
 
 ### 1. Inicializar y seleccionar workspace
 

@@ -3,7 +3,7 @@ SHELL := /bin/bash
 
 ENV ?= dev
 TF_DIR := terraform
-TF_STATE_BUCKET ?= amazon-reviews-analyzer-tfstate
+TF_STATE_BUCKET ?= my-org-tfstate
 
 .PHONY: help
 help: ## Show this help message
