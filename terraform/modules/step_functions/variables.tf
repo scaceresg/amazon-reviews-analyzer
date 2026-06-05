@@ -1,4 +1,4 @@
-variable "name_prefix" {
-  description = "Name prefix for orchestration resources."
-  type        = string
-}
+# variable "name_prefix" {
+#   description = "Name prefix for orchestration resources."
+#   type        = string
+# }
