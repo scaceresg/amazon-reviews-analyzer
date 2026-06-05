@@ -12,4 +12,7 @@ RUN pip install --no-cache-dir "huggingface_hub>=0.23" "boto3>=1.34" "pyyaml>=6.
 COPY amazon_reviews_analyzer/ /app/amazon_reviews_analyzer/
 COPY config/ /app/config/
 
+RUN useradd --system --no-create-home appuser
+USER appuser
+
 ENTRYPOINT ["python", "-m", "amazon_reviews_analyzer.ingestion.download"]
