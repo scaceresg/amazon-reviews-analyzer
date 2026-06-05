@@ -1,11 +1,11 @@
-name: python-services
+name: services
 
 on:
   pull_request:
     paths:
       - "amazon_reviews_analyzer/**"
       - "pyproject.toml"
-      - ".github/workflows/python-services.yml"
+      - ".github/workflows/services.yml"
   push:
     branches:
       - development
@@ -15,7 +15,7 @@ on:
     paths:
       - "amazon_reviews_analyzer/**"
       - "pyproject.toml"
-      - ".github/workflows/python-services.yml"
+      - ".github/workflows/services.yml"
 
 permissions:
   id-token: write   # OIDC to AWS
@@ -66,6 +66,14 @@ jobs:
         run: uv sync --all-extras --dev
       - name: Security audit
         run: uv run pip-audit
+      - name: Container security scan
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: config
+          scan-ref: amazon_reviews_analyzer
+          hide-progress: true
+          exit-code: 1
+          severity: HIGH,CRITICAL
 
   deploy:
     needs: [resolve-env, quality-checks, security-audit]
