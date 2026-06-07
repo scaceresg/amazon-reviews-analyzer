@@ -25,6 +25,20 @@ module "amazon_reviews_analyzer_athena_results_s3_bucket" {
   ]
 }
 
+## --- Batch Ingestion Job --- ##
+module "amazon_reviews_analyzer_batch_ingestion_job" {
+  source            = "./modules/batch"
+  project_name = var.project_name
+  aws_region = var.aws_region
+  batch_job_name = var.project_name
+  compute_environment_type = "MANAGED"
+  compute_resources = {
+    type = "FARGATE"
+    max_vcpus = 256
+    security_group_ids = var.security_group_ids
+    subnets = var.subnet_ids
+  }
+}
 # locals {
 #   name_prefix = "${var.project}-${terraform.workspace}"
 # }
