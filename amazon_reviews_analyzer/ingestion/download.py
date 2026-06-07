@@ -70,13 +70,17 @@ def download_category(
         dest = f"s3://{datalake_bucket}/{s3_key}"
 
         if dry_run:
-            logger.info("[DRY RUN] Would download hf://%s/%s → %s", HF_DATASET, hf_path, dest)
+            logger.info(
+                "[DRY RUN] Would download hf://%s/%s → %s", HF_DATASET, hf_path, dest
+            )
             continue
 
         # TODO: stream directly to S3 without writing to disk using snapshot_download
         # or hf_hub_download + upload_to_s3 in a temp dir.
         logger.info("Downloading hf://%s/%s", HF_DATASET, hf_path)
-        raise NotImplementedError("Real download not yet implemented — use DRY_RUN=true locally")
+        raise NotImplementedError(
+            "Real download not yet implemented — use DRY_RUN=true locally"
+        )
 
 
 def main() -> None:
@@ -92,7 +96,9 @@ def main() -> None:
     categories: list[str] = config.get("categories", [])
 
     if not categories:
-        logger.error("No categories configured. Check 'categories' in your config YAML.")
+        logger.error(
+            "No categories configured. Check 'categories' in your config YAML."
+        )
         sys.exit(1)
 
     logger.info(
