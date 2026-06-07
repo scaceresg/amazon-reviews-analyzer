@@ -8,12 +8,6 @@ variable "batch_job_name" {
   type        = string
 }
 
-variable "batch_job_definition_type" {
-  description = "The type of the batch job definition. It can be 'container' or 'multinode'"
-  type        = string
-  default     = "container"
-}
-
 variable "batch_service_role_arn" {
   description = "ARN of the batch service role"
   type        = string
@@ -23,15 +17,6 @@ variable "batch_service_role_arn" {
 variable "compute_environment_type" {
   description = "The type of the compute environment. It can be 'MANAGED' or 'UNMANAGED'"
   type        = string
-}
-
-variable "compute_environment_order" {
-  description = "The set of compute environments mapped to a job queue and their order relative to each other."
-  type = list(object({
-    compute_environment = string
-    order               = number
-  }))
-  default = null
 }
 
 variable "compute_environment_state" {

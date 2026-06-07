@@ -18,8 +18,9 @@ permissions:
   contents: read
 
 env:
+  PROJECT_DIR_NAME: ${{ vars.PROJECT_DIR_NAME }}
   ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
-  DATALAKE_BUCKET_PREFIX: ${{ vars.DATALAKE_BUCKET_NAME }}
+  DATALAKE_BUCKET_NAME: ${{ vars.DATALAKE_BUCKET_NAME }}
 
 jobs:
   resolve-env:
@@ -71,7 +72,7 @@ jobs:
           exit-code: 1
           severity: HIGH,CRITICAL
 
-  deploy-ingestion-job:
+  build-ingestion-job:
     needs: [resolve-env, quality-checks, security-audit]
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
