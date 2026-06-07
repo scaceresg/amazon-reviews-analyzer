@@ -1,11 +1,6 @@
 name: services
 
 on:
-  pull_request:
-    paths:
-      - "amazon_reviews_analyzer/**"
-      - "pyproject.toml"
-      - ".github/workflows/services.yml"
   push:
     branches:
       - development
@@ -15,6 +10,7 @@ on:
     paths:
       - "amazon_reviews_analyzer/**"
       - "pyproject.toml"
+      - "config/**"
       - ".github/workflows/services.yml"
 
 permissions:
@@ -23,7 +19,7 @@ permissions:
 
 env:
   ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
-  DATALAKE_BUCKET_PREFIX: ${{ vars.DATALAKE_BUCKET_PREFIX }}
+  DATALAKE_BUCKET_PREFIX: ${{ vars.DATALAKE_BUCKET_NAME }}
 
 jobs:
   resolve-env:
@@ -75,7 +71,7 @@ jobs:
           exit-code: 1
           severity: HIGH,CRITICAL
 
-  deploy:
+  deploy-ingestion-job:
     needs: [resolve-env, quality-checks, security-audit]
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
@@ -91,19 +87,66 @@ jobs:
         id: ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build & push ingestion image
+      - name: Build & push ingestion job image
+        id: build
         env:
           REGISTRY: ${{ steps.ecr.outputs.registry }}
           ENV: ${{ needs.resolve-env.outputs.env }}
         run: |
           IMAGE="$REGISTRY/$ECR_REPOSITORY:$ENV-${GITHUB_SHA::7}"
-          docker build -f amazon_reviews_analyzer/ingestion/Dockerfile -t "$IMAGE" .
+          docker build -f $PROJECT_DIR_NAME/ingestion/Dockerfile -t "$IMAGE" .
           docker push "$IMAGE"
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
 
-      - name: Upload Glue scripts & LLM artifacts to S3
+      - name: Register Batch job definition
         env:
+          IMAGE: ${{ steps.build.outputs.image }}
           ENV: ${{ needs.resolve-env.outputs.env }}
+          BATCH_JOB_NAME: ${{ vars.BATCH_JOB_NAME }}
+          BATCH_TASK_ROLE_ARN: ${{ secrets.BATCH_TASK_ROLE_ARN }}
+          BATCH_EXECUTION_ROLE_ARN: ${{ secrets.BATCH_EXECUTION_ROLE_ARN }}
+          DATALAKE_BUCKET: ${{ vars.DATALAKE_BUCKET_NAME }}-${{ needs.resolve-env.outputs.env }}
+          LOG_GROUP: /aws/batch/${{ vars.BATCH_JOB_NAME }}-${{ needs.resolve-env.outputs.env }}
         run: |
-          DATALAKE_BUCKET="${DATALAKE_BUCKET_PREFIX}-${ENV}-datalake"
-          aws s3 sync amazon_reviews_analyzer/etl "s3://${DATALAKE_BUCKET}/scripts/etl/"
-          aws s3 sync amazon_reviews_analyzer/llm "s3://${DATALAKE_BUCKET}/scripts/llm/"
+          aws batch register-job-definition \
+            --job-definition-name "$BATCH_JOB_NAME-$ENV" \
+            --type container \
+            --platform-capabilities FARGATE \
+            --container-properties "$(jq -nc \
+              --arg image "$IMAGE" \
+              --arg task_role "$BATCH_TASK_ROLE_ARN" \
+              --arg exec_role "$BATCH_EXECUTION_ROLE_ARN" \
+              --arg bucket "$DATALAKE_BUCKET" \
+              --arg categories "$CATEGORIES" \
+              --arg log_group "$LOG_GROUP" \
+              --arg region "$AWS_DEFAULT_REGION" \
+              '{
+                image: $image,
+                jobRoleArn: $task_role,
+                executionRoleArn: $exec_role,
+                resourceRequirements: [
+                  {type: "VCPU",   value: "1"},
+                  {type: "MEMORY", value: "2048"}
+                ],
+                environment: [
+                  {name: "DATALAKE_BUCKET", value: $bucket},
+                  {name: "CATEGORIES",      value: $categories}
+                ],
+                networkConfiguration: {assignPublicIp: "ENABLED"},
+                logConfiguration: {
+                  logDriver: "awslogs",
+                  options: {
+                    "awslogs-group":         $log_group,
+                    "awslogs-region":        $region,
+                    "awslogs-stream-prefix": "ingestion"
+                  }
+                }
+              }')"
+
+      # - name: Upload Glue scripts & LLM artifacts to S3
+      #   env:
+      #     ENV: ${{ needs.resolve-env.outputs.env }}
+      #   run: |
+      #     DATALAKE_BUCKET="${DATALAKE_BUCKET_PREFIX}-${ENV}-datalake"
+      #     aws s3 sync amazon_reviews_analyzer/etl "s3://${DATALAKE_BUCKET}/scripts/etl/"
+      #     aws s3 sync amazon_reviews_analyzer/llm "s3://${DATALAKE_BUCKET}/scripts/llm/"
