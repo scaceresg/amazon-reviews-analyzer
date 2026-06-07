@@ -11,7 +11,7 @@ WORKDIR /app
 
 # Install deps first for layer caching — only re-runs when pyproject.toml/uv.lock change.
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev --no-editable
+RUN uv sync --frozen --no-dev --no-install-project
 
 # Copy source and install the package itself.
 COPY amazon_reviews_analyzer/ ./amazon_reviews_analyzer/
