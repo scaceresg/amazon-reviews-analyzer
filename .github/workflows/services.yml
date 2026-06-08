@@ -18,6 +18,7 @@ permissions:
   contents: read
 
 env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
   PROJECT_NAME: ${{ vars.PROJECT_NAME }}
   PROJECT_DIR_NAME: ${{ vars.PROJECT_DIR_NAME }}
   ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
@@ -84,7 +85,6 @@ jobs:
       - uses: aws-actions/configure-aws-credentials@v6.2.0
         with:
           role-to-assume: ${{ secrets.AWS_INFRA_ROLE_ARN }}
-          aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Login to ECR
         id: ecr
@@ -110,8 +110,6 @@ jobs:
       - uses: aws-actions/configure-aws-credentials@v6.2.0
         with:
           role-to-assume: ${{ secrets.AWS_INFRA_ROLE_ARN }}
-          aws-region: ${{ secrets.AWS_REGION }}
-
       - name: Register Batch job definition
         env:
           IMAGE: ${{ needs.build-ingestion-job.outputs.image }}
