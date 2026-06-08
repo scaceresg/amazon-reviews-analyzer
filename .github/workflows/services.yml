@@ -78,6 +78,8 @@ jobs:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     environment: ${{ needs.resolve-env.outputs.env }}
+    outputs:
+      image: ${{ steps.build.outputs.image }}
     steps:
       - uses: actions/checkout@v6
       - uses: aws-actions/configure-aws-credentials@v6.2.0
@@ -106,14 +108,20 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ needs.resolve-env.outputs.env }}
     steps:
+      - uses: aws-actions/configure-aws-credentials@v6.2.0
+        with:
+          role-to-assume: ${{ secrets.AWS_INFRA_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
       - name: Register Batch job definition
         env:
-          IMAGE: ${{ steps.build.outputs.image }}
+          IMAGE: ${{ needs.build-ingestion-job.outputs.image }}
           ENV: ${{ needs.resolve-env.outputs.env }}
           BATCH_JOB_NAME: ${{ vars.BATCH_JOB_NAME }}
           BATCH_TASK_ROLE_ARN: ${{ secrets.BATCH_TASK_ROLE_ARN }}
           BATCH_EXECUTION_ROLE_ARN: ${{ secrets.BATCH_EXECUTION_ROLE_ARN }}
-          DATALAKE_BUCKET: ${{ vars.DATALAKE_BUCKET_NAME }}-${{ needs.resolve-env.outputs.env }}
+          BATCH_JOB_VCPU: "1"
+          BATCH_JOB_MEMORY: "2048"
           LOG_GROUP: /aws/batch/${{ vars.BATCH_JOB_NAME }}-${{ needs.resolve-env.outputs.env }}
         run: |
           aws batch register-job-definition \
@@ -121,24 +129,20 @@ jobs:
             --type container \
             --platform-capabilities FARGATE \
             --container-properties "$(jq -nc \
-              --arg image "$IMAGE" \
-              --arg task_role "$BATCH_TASK_ROLE_ARN" \
-              --arg exec_role "$BATCH_EXECUTION_ROLE_ARN" \
-              --arg bucket "$DATALAKE_BUCKET" \
-              --arg categories "$CATEGORIES" \
-              --arg log_group "$LOG_GROUP" \
-              --arg region "$AWS_DEFAULT_REGION" \
+              --arg image              "$IMAGE" \
+              --arg task_role          "$BATCH_TASK_ROLE_ARN" \
+              --arg exec_role          "$BATCH_EXECUTION_ROLE_ARN" \
+              --arg batch_job_vcpu     "$BATCH_JOB_VCPU" \
+              --arg batch_job_memory   "$BATCH_JOB_MEMORY" \
+              --arg log_group          "$LOG_GROUP" \
+              --arg region             "$AWS_DEFAULT_REGION" \
               '{
-                image: $image,
-                jobRoleArn: $task_role,
+                image:            $image,
+                jobRoleArn:       $task_role,
                 executionRoleArn: $exec_role,
                 resourceRequirements: [
-                  {type: "VCPU",   value: "1"},
-                  {type: "MEMORY", value: "2048"}
-                ],
-                environment: [
-                  {name: "DATALAKE_BUCKET", value: $bucket},
-                  {name: "CATEGORIES",      value: $categories}
+                  {type: "VCPU",   value: $batch_job_vcpu},
+                  {type: "MEMORY", value: $batch_job_memory}
                 ],
                 networkConfiguration: {assignPublicIp: "ENABLED"},
                 logConfiguration: {
