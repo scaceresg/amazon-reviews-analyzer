@@ -75,7 +75,6 @@ jobs:
 
   build-ingestion-job:
     needs: [resolve-env, quality-checks, security-audit]
-    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     environment: ${{ needs.resolve-env.outputs.env }}
     outputs:
@@ -104,7 +103,7 @@ jobs:
   
   deploy-ingestion-job:
     needs: [resolve-env, build-ingestion-job]
-    if: ${{ github.ref_name == 'development' || github.ref_name == 'master' }}
+    if: ${{ (github.ref_name == 'development' || github.ref_name == 'master') && needs.build-ingestion-job.result == 'success' }}
     runs-on: ubuntu-latest
     environment: ${{ needs.resolve-env.outputs.env }}
     steps:
