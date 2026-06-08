@@ -102,7 +102,7 @@ jobs:
   
   deploy-ingestion-job:
     needs: [resolve-env, build-ingestion-job]
-    if: if: ${{ github.ref_name == 'development' || github.ref_name == 'master')
+    if: ${{ github.ref_name == 'development' || github.ref_name == 'master' }}
     runs-on: ubuntu-latest
     environment: ${{ needs.resolve-env.outputs.env }}
     steps:

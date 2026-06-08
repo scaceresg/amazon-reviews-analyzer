@@ -85,7 +85,7 @@ jobs:
 
   apply:
     needs: [resolve-env, plan]
-    if: ${{ github.ref_name == 'development' || github.ref_name == 'master')
+    if: ${{ github.ref_name == 'development' || github.ref_name == 'master' }}
     runs-on: ubuntu-latest
     environment: ${{ needs.resolve-env.outputs.workspace }}
     defaults:
