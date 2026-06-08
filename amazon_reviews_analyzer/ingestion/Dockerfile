@@ -14,6 +14,7 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 
 # Copy source and install the package itself.
+COPY README.md ./
 COPY amazon_reviews_analyzer/ ./amazon_reviews_analyzer/
 COPY config/ ./config/
 RUN uv sync --frozen --no-dev
