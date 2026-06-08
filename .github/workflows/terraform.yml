@@ -17,6 +17,7 @@ permissions:
   pull-requests: write
 
 env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
   TF_STATE_BUCKET: ${{ secrets.TF_STATE_BUCKET }}
 
 jobs:
@@ -75,7 +76,6 @@ jobs:
       - uses: aws-actions/configure-aws-credentials@v6.2.0
         with:
           role-to-assume: ${{ secrets.AWS_INFRA_ROLE_ARN }}
-          aws-region: ${{ secrets.AWS_REGION }}
       - name: Init
         run: terraform init -backend-config="bucket=${TF_STATE_BUCKET}"
       - name: Select workspace
@@ -99,7 +99,6 @@ jobs:
       - uses: aws-actions/configure-aws-credentials@v6.2.0
         with:
           role-to-assume: ${{ secrets.AWS_INFRA_ROLE_ARN }}
-          aws-region: ${{ secrets.AWS_REGION }}
       - name: Init
         run: terraform init -backend-config="bucket=${TF_STATE_BUCKET}"
       - name: Select workspace
