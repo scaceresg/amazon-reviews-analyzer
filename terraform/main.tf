@@ -1,3 +1,97 @@
+## --- IAM roles --- ##
+
+data "aws_caller_identity" "current" {}
+data "aws_partition" "current" {}
+
+locals {
+  account_id = data.aws_caller_identity.current.account_id
+  partition  = data.aws_partition.current.partition
+}
+
+module "amazon_reviews_analyzer_batch_execution_iam_role" {
+  source        = "./modules/iam"
+  iam_role_name = "${var.project_name}-batch-execution"
+  project_name  = var.project_name
+  assume_role_statements = [
+    {
+      actions = ["sts:AssumeRole"]
+      effect  = "Allow"
+      principals = {
+        type        = "Service"
+        identifiers = ["ecs-tasks.amazonaws.com"]
+      }
+      condition = {
+        test     = "StringEquals"
+        variable = "aws:SourceAccount"
+        values   = [local.account_id]
+      }
+    }
+  ]
+  policy_statements = [
+    {
+      sid     = "ECRPull"
+      actions = ["ecr:GetDownloadUrlForLayer", "ecr:BatchGetImage", "ecr:BatchCheckLayerAvailability"]
+      effect  = "Allow"
+      resources = [
+        "arn:${local.partition}:ecr:${var.aws_region}:${local.account_id}:repository/${var.project_name}-ingestion"
+      ]
+    },
+    {
+      sid       = "ECRToken"
+      actions   = ["ecr:GetAuthorizationToken"]
+      effect    = "Allow"
+      resources = ["*"]
+    },
+    {
+      sid     = "CloudWatchLogs"
+      actions = ["logs:CreateLogStream", "logs:PutLogEvents"]
+      effect  = "Allow"
+      resources = [
+        "arn:${local.partition}:logs:${var.aws_region}:${local.account_id}:log-group:/aws/batch/*"
+      ]
+    }
+  ]
+}
+
+module "amazon_reviews_analyzer_batch_task_iam_role" {
+  source        = "./modules/iam"
+  iam_role_name = "${var.project_name}-batch-task"
+  project_name  = var.project_name
+  assume_role_statements = [
+    {
+      actions = ["sts:AssumeRole"]
+      effect  = "Allow"
+      principals = {
+        type        = "Service"
+        identifiers = ["ecs-tasks.amazonaws.com"]
+      }
+      condition = {
+        test     = "StringEquals"
+        variable = "aws:SourceAccount"
+        values   = [local.account_id]
+      }
+    }
+  ]
+  policy_statements = [
+    {
+      sid       = "S3BronzeObjects"
+      actions   = ["s3:PutObject", "s3:GetObject"]
+      effect    = "Allow"
+      resources = ["${module.amazon_reviews_analyzer_datalake_s3_bucket.bucket_arn}/bronze/*"]
+    },
+    {
+      sid       = "S3BronzeList"
+      actions   = ["s3:ListBucket"]
+      effect    = "Allow"
+      resources = [module.amazon_reviews_analyzer_datalake_s3_bucket.bucket_arn]
+      condition = {
+        test     = "StringLike"
+        variable = "s3:prefix"
+        values   = ["bronze/*"]
+      }
+    }
+  ]
+}
 ## --- S3 buckets --- ##
 
 module "amazon_reviews_analyzer_datalake_s3_bucket" {
