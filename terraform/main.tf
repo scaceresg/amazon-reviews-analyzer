@@ -29,17 +29,17 @@ module "amazon_reviews_analyzer_batch_execution_iam_role" {
   ]
   policy_statements = [
     {
-      sid = "ECRPull"
+      sid     = "ECRPull"
       actions = ["ecr:GetDownloadUrlForLayer", "ecr:BatchGetImage", "ecr:BatchCheckLayerAvailability"]
-      effect = "Allow"
+      effect  = "Allow"
       resources = [
         "arn:${local.partition}:ecr:${var.aws_region}:${local.account_id}:repository/${var.project_name}-ingestion"
       ]
     },
     {
-      sid = "ECRToken"
-      actions = ["ecr:GetAuthorizationToken"]
-      effect = "Allow"
+      sid       = "ECRToken"
+      actions   = ["ecr:GetAuthorizationToken"]
+      effect    = "Allow"
       resources = ["*"]
     }
   ]
