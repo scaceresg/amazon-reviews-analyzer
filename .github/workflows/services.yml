@@ -18,6 +18,7 @@ permissions:
   contents: read
 
 env:
+  PROJECT_NAME: ${{ vars.PROJECT_NAME }}
   PROJECT_DIR_NAME: ${{ vars.PROJECT_DIR_NAME }}
   ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
   DATALAKE_BUCKET_NAME: ${{ vars.DATALAKE_BUCKET_NAME }}
@@ -94,11 +95,17 @@ jobs:
           REGISTRY: ${{ steps.ecr.outputs.registry }}
           ENV: ${{ needs.resolve-env.outputs.env }}
         run: |
-          IMAGE="$REGISTRY/$ECR_REPOSITORY:$ENV-${GITHUB_SHA::7}"
+          IMAGE="$REGISTRY/$ECR_REPOSITORY/$PROJECT_NAME-ingestion:$ENV-${GITHUB_SHA::7}"
           docker build -f $PROJECT_DIR_NAME/ingestion/Dockerfile -t "$IMAGE" .
           docker push "$IMAGE"
           echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
-
+  
+  deploy-ingestion-job:
+    needs: [resolve-env, build-ingestion-job]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/development' || github.ref == 'refs/heads/master')
+    runs-on: ubuntu-latest
+    environment: ${{ needs.resolve-env.outputs.env }}
+    steps:
       - name: Register Batch job definition
         env:
           IMAGE: ${{ steps.build.outputs.image }}
