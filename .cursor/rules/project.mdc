@@ -11,13 +11,13 @@ Read `CLAUDE.md` at the repo root for the full project context before making cha
 
 - **English only**: all code, comments, docstrings, commit messages, and documentation.
 - **Python 3.12 + uv**: format with `ruff format`, lint with `ruff check`, audit with `pip-audit`.
-- **Stubs**: all functions in `etl/`, `llm/`, and `ingestion/download.py` raise `NotImplementedError`. Implement them incrementally; do not remove the stub pattern until the real logic is ready.
+- **Stubs**: all functions in `etl/` and `llm/` raise `NotImplementedError`, as does the real-download path in `ingestion/download.py::download_category()`. The dry-run path, `list_category_files()`, `upload_to_s3()`, and `main()` are real implementations — do not add `NotImplementedError` there. Implement stubs incrementally; do not remove the stub pattern until the real logic is ready.
 - **No hardcoded bucket names or credentials**: tfstate bucket always via `-backend-config`; AWS credentials via OIDC in CI.
 
 ## Terraform rules
 
 - `terraform/providers.tf` is the single file for `terraform {}`, `backend "s3"`, and `provider "aws"`. Do **not** split into `backend.tf` / `versions.tf`.
-- No root `outputs.tf`; workspace is referenced via `local.name_prefix` in `main.tf`.
+- No root `outputs.tf`; resource names use `var.project_name` and environment isolation comes from the default `Environment = terraform.workspace` tag.
 - Two S3 buckets per workspace: `<prefix>-datalake` (medallion prefixes) and `<prefix>-athena-results`.
 
 ## S3 prefix layout

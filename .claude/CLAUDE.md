@@ -9,9 +9,11 @@ Serverless analytics platform built on AWS for the
 [Amazon Reviews'23 dataset](https://amazon-reviews-2023.github.io/) (McAuley Lab,
 HuggingFace: `McAuley-Lab/Amazon-Reviews-2023`).
 
-**Current status:** architecture + scaffold only. All Python code is stub/skeleton
-(functions raise `NotImplementedError`). Terraform modules are skeletons with
-comments describing what to implement. No AWS resources have been deployed yet.
+**Current status:**
+
+- **Implemented:** `utils/` (config loader + logging), `ingestion/download.py` (HF file listing, S3 upload helper, dry-run entry point); Terraform modules `s3_bucket` (datalake + athena-results buckets) and `batch` (Fargate compute environment + job queue) — both wired in `main.tf`.
+- **Stubs (`raise NotImplementedError`):** `ingestion/download_category()` real-download path; all functions in `etl/` and `llm/`.
+- **Skeleton modules (comment-only, not yet in `main.tf`):** `iam`, `glue`, `bedrock`, `step_functions`, `athena`, `quicksight`, `observability`.
 
 ## Architecture (ELT serverless, S3 medallion)
 
@@ -73,13 +75,11 @@ amazon-reviews-analyzer/
 │   ├── providers.tf                 # terraform{} + backend s3 + provider aws (single file)
 │   ├── variables.tf
 │   ├── main.tf                      # module composition
-│   ├── environments/
-│   │   ├── dev.tfvars
-│   │   └── prod.tfvars
+│   ├── terraform.tfvars             # dev values (region, project, subnet/SG IDs)
 │   └── modules/
-│       ├── s3_lake/                 # KMS + 2 S3 buckets
+│       ├── s3_bucket/               # S3 bucket with lifecycle, versioning, KMS (optional)
 │       ├── iam/                     # least-privilege roles (skeleton)
-│       ├── batch/                   # ECR + Fargate (skeleton)
+│       ├── batch/                   # Fargate compute environment + job queue (implemented; ECR pending)
 │       ├── glue/                    # catalog + PySpark jobs (skeleton)
 │       ├── bedrock/                 # batch inference (skeleton)
 │       ├── step_functions/          # state machine + EventBridge (skeleton)
@@ -93,8 +93,8 @@ amazon-reviews-analyzer/
 │   └── llm/                         # prompt builder + Bedrock batch client
 └── .github/
     └── workflows/
-        ├── terraform.yml            # fmt + lint + validate + tfsec + plan + manual apply
-        └── python-services.yml      # ruff + pip-audit + build ECR + deploy scripts
+        ├── terraform.yml            # fmt + lint + validate + Trivy + plan + manual apply
+        └── services.yml             # ruff + pip-audit + Trivy + build ECR + deploy Batch job
 ```
 
 ## Branch → environment mapping
@@ -109,9 +109,12 @@ amazon-reviews-analyzer/
 - **Language:** all code, comments, docstrings, and documentation must be in **English**.
 - **Python:** 3.12, managed with `uv`. Formatter and linter: `ruff` (line length 88,
   target `py312`, rule sets E/F/I/UP/B/W). Security audit: `pip-audit`.
-- **Terraform:** >= 1.10, AWS provider ~> 5.0. `providers.tf` contains the `terraform{}`
+- **Terraform:** >= 1.12, AWS provider ~> 6.0. `providers.tf` contains the `terraform{}`
   block, backend, and provider — do **not** split them back into separate files.
-  No root `outputs.tf`; use `terraform.workspace` via `local.name_prefix` in `main.tf`.
+  No root `outputs.tf`; resource names use `var.project_name` and environment isolation
+  comes from the default `Environment = terraform.workspace` tag. Currently only the
+  `s3_bucket` and `batch` modules are instantiated in `main.tf`; all others are
+  comment-only scaffolds.
 - **Stubs:** all Python functions in `etl/`, `llm/`, and `ingestion/download.py` are
   stubs that raise `NotImplementedError`. Implement them before adding logic elsewhere.
 - **No hardcoded bucket names.** The tfstate bucket is passed via

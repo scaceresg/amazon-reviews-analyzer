@@ -1,173 +1,224 @@
-# Guía de desarrollo y despliegue
+# Development and deployment guide
 
-Documentación técnica del proyecto Amazon Reviews Analyzer: despliegue de infraestructura, permisos IAM y pipeline de CI/CD.
+Technical documentation for the Amazon Reviews Analyzer project: infrastructure deployment, IAM permissions, CI/CD pipeline, and pending work.
 
 ---
 
-## Tabla de contenidos
+## Table of contents
 
-- [Despliegue paso a paso (desde cero)](#despliegue-paso-a-paso-desde-cero)
-- [Permisos IAM mínimos por servicio](#permisos-iam-mínimos-por-servicio)
+- [Step-by-step deployment (from scratch)](#step-by-step-deployment-from-scratch)
+- [Minimum IAM permissions per service](#minimum-iam-permissions-per-service)
 - [CI/CD](#cicd)
+- [Pending work](#pending-work)
 
 ---
 
-## Despliegue paso a paso (desde cero)
+## Step-by-step deployment (from scratch)
 
-> Requiere: cuenta AWS, [AWS CLI](https://docs.aws.amazon.com/cli/), [Terraform](https://developer.hashicorp.com/terraform) >= 1.10, [uv](https://docs.astral.sh/uv/), Docker, acceso habilitado a modelos en Amazon Bedrock y suscripción a QuickSight.
+> Requirements: AWS account, [AWS CLI](https://docs.aws.amazon.com/cli/), [Terraform](https://developer.hashicorp.com/terraform) >= 1.12, [uv](https://docs.astral.sh/uv/), Docker, model access enabled in Amazon Bedrock, and QuickSight subscription.
 
-### 0. Backend de Terraform (manual, una sola vez)
+### 0. Terraform backend (manual, one-time)
 
-Crear desde la **consola UI de AWS** un bucket S3 compartido entre proyectos (p. ej. `my-org-tfstate-<account_id>`), con versioning y bloqueo de acceso público activados.
+Create from the **AWS Management Console** a shared S3 bucket across projects (e.g. `my-org-tfstate-<account_id>`), with versioning and public access block enabled.
 
-El bucket **no está hardcodeado** en el código; se pasa en el momento del `init` con `-backend-config`:
+The bucket is **not hardcoded** in the code; it is passed at `init` time with `-backend-config`:
 
 ```bash
 terraform init -backend-config="bucket=<bucket-name>"
 ```
 
-El backend usa **bloqueo nativo de S3** (`use_lockfile = true`, Terraform >= 1.10), por lo que **no se requiere DynamoDB**.
+The backend uses **native S3 locking** (`use_lockfile = true`, Terraform >= 1.12), so **DynamoDB is not required**.
 
-Los estados quedan organizados por proyecto y workspace dentro del bucket:
+States are organized by project and workspace inside the bucket:
 
 ```
 <bucket>/
   amazon-reviews-analyzer/
-    dev/terraform.tfstate    ← workspace dev
-    prod/terraform.tfstate   ← workspace prod
-  otro-proyecto/
-    dev/terraform.tfstate
-    prod/terraform.tfstate
+    dev/terraform.tfstate    ← dev workspace
+    prod/terraform.tfstate   ← prod workspace
 ```
 
-### 1. Inicializar y seleccionar workspace
+### 1. Initialize and select workspace
 
 ```bash
 cd terraform
-terraform init -backend-config="bucket=amazon-reviews-analyzer-tfstate-<account_id>"
-terraform workspace new dev    # y/o prod
+terraform init -backend-config="bucket=<shared-tfstate-bucket>"
+terraform workspace new dev    # and/or prod
 terraform workspace select dev
 ```
 
-### 2. KMS + buckets S3 del data lake
+### 2. S3 data lake buckets
 
-Módulo `s3_lake`: crea la KMS key y **2 buckets por ambiente**:
+Module `s3_bucket` (instantiated twice in `main.tf`): creates **2 buckets per environment**:
 
-| Bucket | Contenido |
+| Bucket | Contents |
 | --- | --- |
-| `<prefix>-datalake` | Zonas como prefijos: `bronze/`, `silver/`, `gold/`, `scripts/` |
-| `<prefix>-athena-results` | Resultados de queries de Athena |
+| `<prefix>-datalake` | Zones as prefixes: `bronze/`, `silver/`, `gold/`, `scripts/` |
+| `<prefix>-athena-results` | Athena query results (30-day expiry lifecycle) |
 
-El lifecycle que transiciona y expira datos del prefijo `bronze/` se aplica con un filtro de prefijo dentro del bucket `datalake`.
+The lifecycle that transitions and expires data in the `bronze/` prefix is applied with a prefix filter inside the `datalake` bucket. KMS encryption is available via the `kms_key_arn` module variable; it is not currently wired in `main.tf`.
 
-### 3. Roles y políticas IAM
+### 3. IAM roles and policies
 
-Módulo `iam`: define un rol por servicio con permisos mínimos (ver [tabla IAM](#permisos-iam-mínimos-por-servicio)).
+Module `iam` (skeleton): defines one role per service with least-privilege permissions — see [IAM table](#minimum-iam-permissions-per-service). **Not yet implemented.**
 
-### 4. Ingesta: ECR + AWS Batch
+### 4. Ingestion: ECR + AWS Batch
 
-Módulo `batch`: repositorio ECR, *compute environment* Fargate, *job queue* y *job definition* que ejecuta el contenedor de `amazon_reviews_analyzer/ingestion/`.
+Module `batch` (partially implemented): Fargate compute environment and job queue. **ECR repository not yet provisioned** — needs to be added to the `batch` module or as a separate resource in `main.tf`.
 
-### 5. Glue (catálogo + jobs)
+### 5. Glue (catalog + jobs)
 
-Módulo `glue`: database del Data Catalog, Glue Jobs (`silver`, `gold-merge`) con scripts en `s3://<prefix>-datalake/scripts/`. Crawler opcional para descubrimiento/drift de esquema.
+Module `glue` (skeleton): Glue Data Catalog database, Glue Jobs (`silver`, `gold-merge`) with scripts at `s3://<prefix>-datalake/scripts/`. Optional crawler for schema discovery/drift. **Not yet implemented.**
 
 ### 6. Bedrock (LLM batch)
 
-Habilitar el modelo en la **consola de Bedrock** (Management Console → Bedrock → Model access). Módulo `bedrock`: rol de batch inference con acceso a los prefijos de I/O en el bucket `datalake`.
+Enable the model in the **Bedrock console** (Management Console → Bedrock → Model access). Module `bedrock` (skeleton): batch inference IAM role with access to the I/O prefixes in the `datalake` bucket. **Not yet implemented.**
 
-### 7. Orquestación: Step Functions + EventBridge
+### 7. Orchestration: Step Functions + EventBridge
 
-Módulo `step_functions`: state machine que coordina ingesta → silver → Bedrock batch → gold; schedule de EventBridge.
+Module `step_functions` (skeleton): state machine coordinating ingestion → silver → Bedrock batch → gold; EventBridge Scheduler rule. **Not yet implemented.**
 
-### 8. Consulta: Athena
+### 8. Query: Athena
 
-Módulo `athena`: workgroup dedicado apuntando al bucket `<prefix>-athena-results`.
+Module `athena` (skeleton): dedicated workgroup pointing to the `<prefix>-athena-results` bucket. **Not yet implemented.**
 
-### 9. Visualización: QuickSight
+### 9. Visualization: QuickSight
 
-Módulo `quicksight`: permisos a Athena y S3, fuente de datos, dataset SPICE y dashboard.
+Module `quicksight` (skeleton): Athena and S3 permissions, data source, SPICE dataset, and dashboard. Requires a QuickSight subscription. **Not yet implemented.**
 
-### 10. Observabilidad
+### 10. Observability
 
-Módulo `observability`: log groups de CloudWatch, alarmas y tags de costo.
+Module `observability` (skeleton): CloudWatch log groups, alarms, and cost tags. **Not yet implemented.**
 
-### Aplicar
+### Apply
 
 ```bash
-# Desde terraform/
-terraform plan  -var-file=environments/dev.tfvars
-terraform apply -var-file=environments/dev.tfvars   # gated/manual en CI
+# From terraform/
+terraform workspace select dev   # or prod
+terraform plan
+terraform apply                  # gated/manual in CI
 ```
+
+Variable values (region, project name, subnet IDs, security group IDs) are declared in `terraform/terraform.tfvars`.
 
 ---
 
-## Permisos IAM mínimos por servicio
+## Minimum IAM permissions per service
 
-Principio de **menor privilegio**: cada rol solo accede a los recursos y prefijos que necesita. Reemplazar `*` por ARNs concretos en la implementación.
+Principle of **least privilege**: each role only accesses the resources and prefixes it needs. Replace `*` with concrete ARNs in the implementation.
 
-| Rol | Acciones clave | Recursos |
+| Role | Key actions | Resources |
 | --- | --- | --- |
-| **Batch / Fargate (task role)** | `s3:PutObject`, `s3:GetObject`, `s3:ListBucket`; `logs:CreateLogStream`, `logs:PutLogEvents`; `ecr:GetDownloadUrlForLayer`, `ecr:BatchGetImage`, `ecr:GetAuthorizationToken` | Bucket datalake (prefijo `bronze/`); log group del job; repo ECR |
-| **Glue job role** | `s3:GetObject`, `s3:PutObject`, `s3:ListBucket`; `glue:GetTable`, `glue:CreateTable`, `glue:UpdateTable`, `glue:BatchCreatePartition`; `logs:*` del job; `kms:Encrypt`, `kms:Decrypt`, `kms:GenerateDataKey` | Bucket datalake (prefijos `silver/`, `gold/`, `scripts/`); database del catálogo; KMS key |
-| **Bedrock batch role** | `s3:GetObject` (input), `s3:PutObject` (output); `bedrock:CreateModelInvocationJob`, `bedrock:GetModelInvocationJob`, `bedrock:StopModelInvocationJob`, `bedrock:InvokeModel`; `kms:*` data key | Bucket datalake (prefijos de I/O del batch); modelo/región de Bedrock; KMS |
-| **Step Functions role** | `batch:SubmitJob`, `batch:DescribeJobs`; `glue:StartJobRun`, `glue:GetJobRun`; `bedrock:CreateModelInvocationJob`, `bedrock:GetModelInvocationJob`; `iam:PassRole` (acotado) | ARNs de job queue/definition, Glue jobs, roles a pasar |
-| **Athena (workgroup) + QuickSight** | `athena:StartQueryExecution`, `athena:GetQueryResults`; `glue:GetTable`, `glue:GetPartitions`; `s3:GetObject`/`PutObject` en resultados; `s3:GetObject` en `gold/` | Workgroup; database del catálogo; bucket `athena-results`; prefijo `gold/` en datalake |
-| **CI/CD (OIDC GitHub Actions)** | `sts:AssumeRoleWithWebIdentity`; permisos de despliegue por servicio (Terraform plan/apply, push ECR, `s3:PutObject` en `scripts/`) | Rol federado restringido por `repo:org/repo:ref` |
+| **Batch / Fargate (task role)** | `s3:PutObject`, `s3:GetObject`, `s3:ListBucket`; `logs:CreateLogStream`, `logs:PutLogEvents`; `ecr:GetDownloadUrlForLayer`, `ecr:BatchGetImage`, `ecr:GetAuthorizationToken` | Datalake bucket (prefix `bronze/`); job log group; ECR repo |
+| **Glue job role** | `s3:GetObject`, `s3:PutObject`, `s3:ListBucket`; `glue:GetTable`, `glue:CreateTable`, `glue:UpdateTable`, `glue:BatchCreatePartition`; `logs:*` for job; `kms:Encrypt`, `kms:Decrypt`, `kms:GenerateDataKey` | Datalake bucket (prefixes `silver/`, `gold/`, `scripts/`); catalog database; KMS key |
+| **Bedrock batch role** | `s3:GetObject` (input), `s3:PutObject` (output); `bedrock:CreateModelInvocationJob`, `bedrock:GetModelInvocationJob`, `bedrock:StopModelInvocationJob`, `bedrock:InvokeModel`; `kms:*` data key | Datalake bucket (batch I/O prefixes); Bedrock model/region; KMS |
+| **Step Functions role** | `batch:SubmitJob`, `batch:DescribeJobs`; `glue:StartJobRun`, `glue:GetJobRun`; `bedrock:CreateModelInvocationJob`, `bedrock:GetModelInvocationJob`; `iam:PassRole` (scoped) | Job queue/definition ARNs, Glue jobs, roles to pass |
+| **Athena (workgroup) + QuickSight** | `athena:StartQueryExecution`, `athena:GetQueryResults`; `glue:GetTable`, `glue:GetPartitions`; `s3:GetObject`/`PutObject` on results; `s3:GetObject` on `gold/` | Workgroup; catalog database; `athena-results` bucket; `gold/` prefix in datalake |
+| **CI/CD (OIDC GitHub Actions)** | `sts:AssumeRoleWithWebIdentity`; deployment permissions per service (Terraform plan/apply, ECR push, `s3:PutObject` on `scripts/`) | Federated role restricted by `repo:org/repo:ref` |
 
 ---
 
 ## CI/CD
 
-GitHub Actions con autenticación **OIDC** hacia AWS (sin llaves de larga vida). Mapeo de ramas a workspace/ambiente de Terraform:
+GitHub Actions with **OIDC** authentication to AWS (no long-lived keys). Branch-to-workspace/environment mapping:
 
-| Ramas | Workspace / Ambiente | Apply |
+| Branch | Workspace / Environment | Apply |
 | --- | --- | --- |
-| `feature/*`, `development` | **dev** | manual tras merge |
-| `master`, `hotfix/*` | **prod** | manual tras merge |
+| `feature/*`, `development` | **dev** | manual after merge |
+| `master`, `hotfix/*` | **prod** | manual after merge |
 
-- El **`terraform apply` siempre es manual**: se ejecuta tras el merge mediante **GitHub Environments** con *required reviewers* (gate de aprobación).
-- Ningún nombre de bucket ni configuración de infraestructura está hardcodeado en el código. Se usan **GitHub Repository Variables** (no secretos) para valores no sensibles.
+- **`terraform apply` is always manual**: executed after merge via **GitHub Environments** with *required reviewers* (approval gate).
+- No bucket name or infrastructure configuration is hardcoded in the code. **GitHub Repository Variables** (not secrets) are used for non-sensitive values.
 
-### GitHub Repository Variables requeridas
+### Required GitHub Repository Variables
 
-Configurar en **Settings → Secrets and variables → Variables → New repository variable**:
+Configure in **Settings → Secrets and variables → Variables → New repository variable**:
 
-| Variable | Ejemplo | Usado en |
+| Variable | Example | Used in |
 | --- | --- | --- |
-| `AWS_REGION` | `us-east-1` | `terraform.yml`, `python-services.yml` |
-| `TF_VERSION` | `1.10.5` | `terraform.yml` |
-| `PYTHON_VERSION` | `3.12` | `python-services.yml` |
-| `ECR_REPOSITORY` | `amazon-reviews-analyzer-ingestion` | `python-services.yml` |
-| `DATALAKE_BUCKET_PREFIX` | `amazon-reviews-analyzer` | `python-services.yml` (upload de scripts) |
+| `TF_VERSION` | `1.12.0` | `terraform.yml` |
+| `PYTHON_VERSION` | `3.12` | `services.yml` |
+| `PROJECT_NAME` | `amazon-reviews-analyzer` | `services.yml` |
+| `PROJECT_DIR_NAME` | `amazon_reviews_analyzer` | `services.yml` |
+| `ECR_REPOSITORY` | `amazon-reviews-analyzer` | `services.yml` |
+| `DATALAKE_BUCKET_NAME` | `amazon-reviews-analyzer-datalake` | `services.yml` |
+| `BATCH_JOB_NAME` | `amazon-reviews-analyzer` | `services.yml` |
 
-Y los siguientes **GitHub Secrets** (Settings → Secrets and variables → Secrets):
+### Required GitHub Secrets
 
-| Secret | Descripción |
+Configure in **Settings → Secrets and variables → Secrets**:
+
+| Secret | Description |
 | --- | --- |
-| `AWS_INFRA_ROLE_ARN` | ARN del rol IAM federado con OIDC para levantar infra y servicios AWS |
-| `TF_STATE_BUCKET` | Nombre del bucket S3 compartido para los tfstates |
+| `AWS_INFRA_ROLE_ARN` | ARN of the IAM role federated with OIDC for deploying infrastructure and services |
+| `AWS_REGION` | AWS region (e.g. `us-east-1`) |
+| `TF_STATE_BUCKET` | Name of the shared S3 bucket for Terraform state files |
+| `BATCH_TASK_ROLE_ARN` | ARN of the IAM role assumed by the Batch Fargate task (will be an output of the `iam` module once implemented) |
+| `BATCH_EXECUTION_ROLE_ARN` | ARN of the ECS execution role for Fargate (will be an output of the `iam` module once implemented) |
 
 ### Workflow `terraform.yml`
 
-Ubicación: [`.github/workflows/terraform.yml`](../.github/workflows/terraform.yml)
+Location: [`.github/workflows/terraform.yml`](../.github/workflows/terraform.yml)
 
 1. `terraform fmt -check -recursive`
 2. `tflint`
 3. `terraform init -backend=false` + `terraform validate`
-4. `tfsec` (seguridad de IaC)
-5. `terraform plan` en el workspace correspondiente (en PRs y push)
-6. `terraform apply` en job separado, *gated* por GitHub Environment (aprobación manual)
+4. **Trivy** security scan (`aquasecurity/trivy-action`, config scan, exit-code 1 on HIGH/CRITICAL)
+5. `terraform plan` in the corresponding workspace (on PRs and push)
+6. `terraform apply` in a separate job, *gated* by GitHub Environment (manual approval)
 
-### Workflow `python-services.yml`
+### Workflow `services.yml`
 
-Ubicación: [`.github/workflows/python-services.yml`](../.github/workflows/python-services.yml)
+Location: [`.github/workflows/services.yml`](../.github/workflows/services.yml)
 
-1. Setup `uv` + Python 3.12
-2. **Format check**: `uv run ruff format --check .`
-3. **Lint**: `uv run ruff check .`
-4. **Security/audit**: `uv run pip-audit`
-5. **Build & deploy** (*gated* por ambiente):
-   - Build y push de la imagen Docker de `ingestion/` a Amazon ECR
-   - Subida de scripts Glue (`etl/`) y artefactos LLM (`llm/`) al prefijo `scripts/` del bucket `<prefix>-datalake`
-   - Actualización de definiciones (Batch job definition, Glue jobs) según ambiente
+Jobs (in order):
+
+1. **`resolve-env`** — maps branch to environment (`dev` / `prod`).
+2. **`quality-checks`** — `uv run ruff format --check` + `uv run ruff check`.
+3. **`security-audit`** — `uv run pip-audit` + Trivy config scan over `amazon_reviews_analyzer/`.
+4. **`build-ingestion-job`** — ECR login, Docker build and push with tag `<env>-<sha::7>`, exposes image URI as output.
+5. **`deploy-ingestion-job`** *(development / master only)* — registers a new Batch job definition (`aws batch register-job-definition`) for the pushed image (1 vCPU, 2048 MB, awslogs driver).
+
+> **Note:** uploading Glue/LLM scripts to `s3://<datalake-bucket>/scripts/` is currently commented out (lines 158–164 of `services.yml`). It will be re-enabled once the Glue module is implemented.
+
+---
+
+## Pending work
+
+### Terraform modules to implement
+
+The following modules exist as comment-only scaffolds in `terraform/modules/` and need to be coded before the full pipeline can run. Once each module is implemented, uncomment and wire its entry in `terraform/main.tf`.
+
+| Module | What to implement |
+| --- | --- |
+| `iam` | Least-privilege roles: Batch task role, Glue job role, Bedrock batch role, Step Functions role, CI/CD OIDC role |
+| `glue` | Glue Data Catalog database, `silver` and `gold-merge` PySpark jobs with scripts at `s3://<prefix>-datalake/scripts/`, explicit table definitions; optional crawler |
+| `bedrock` | Batch inference IAM role + S3 I/O prefixes in the datalake; enable Model Access in the Bedrock console first |
+| `step_functions` | State machine (ingest → silver → bedrock → gold) + EventBridge Scheduler rule |
+| `athena` | Dedicated workgroup pointing to `<prefix>-athena-results` |
+| `quicksight` | Athena data source, SPICE dataset, dashboard; requires QuickSight subscription |
+| `observability` | CloudWatch log groups and alarms for Batch, Glue, Bedrock, and Step Functions |
+
+### Additional infrastructure
+
+- **ECR repository**: the `batch` module does not yet provision an ECR repo. Add it to the module or as a standalone resource in `main.tf`.
+- **KMS CMK**: the `s3_bucket` module accepts a `kms_key_arn` variable. Decide whether to use a customer-managed key; if so, provision it and pass it to both bucket instantiations in `main.tf`.
+- **`terraform.tfvars`**: currently contains dev VPC subnet and security group IDs. When a prod environment with different networking is introduced, values per environment will need to be separated.
+
+### CI/CD services
+
+- **Re-enable Glue/LLM script upload** in `services.yml` (lines 158–164) once the Glue module and `scripts/` prefix are in place.
+- **Glue job update step**: add a deploy step to update Glue job definitions (script S3 paths, PySpark version, worker config) once the `glue` module is implemented.
+- **`BATCH_TASK_ROLE_ARN` / `BATCH_EXECUTION_ROLE_ARN`**: currently GitHub Secrets set manually. Once the `iam` module outputs these ARNs, wire them from Terraform state outputs and remove the manual secrets.
+
+### Python code
+
+| File | What to implement |
+| --- | --- |
+| `ingestion/download.py::download_category()` | Real HF → S3 streaming download (currently raises `NotImplementedError` on the non-dry-run path) |
+| `etl/silver_job.py::run()` | PySpark bronze → silver ETL (parse JSONL.gz, clean, deduplicate, write Parquet) |
+| `etl/gold_merge_job.py::run()` | PySpark silver + LLM enrichment → gold merge |
+| `llm/prepare_prompts.py::build_batch_input()` | Build JSONL batch input file for Bedrock |
+| `llm/bedrock_batch.py::submit_batch_job()` | Submit and poll a Bedrock `CreateModelInvocationJob` |
+
+> No `tests/` directory exists. Add unit tests incrementally as stubs are implemented.
