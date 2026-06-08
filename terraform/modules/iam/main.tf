@@ -50,7 +50,7 @@ data "aws_iam_policy_document" "assume_role_policy" {
 
 resource "aws_iam_role" "iam_role" {
   name               = "${var.iam_role_name}-${terraform.workspace}-role"
-  description        = "IAM role for the ${var.iam_role_name} service"
+  description        = "${var.iam_role_name}-${terraform.workspace}-role"
   assume_role_policy = data.aws_iam_policy_document.assume_role_policy.json
 
   max_session_duration  = var.max_session_duration

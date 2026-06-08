@@ -41,6 +41,14 @@ module "amazon_reviews_analyzer_batch_execution_iam_role" {
       actions   = ["ecr:GetAuthorizationToken"]
       effect    = "Allow"
       resources = ["*"]
+    },
+    {
+      sid     = "CloudWatchLogs"
+      actions = ["logs:CreateLogStream", "logs:PutLogEvents"]
+      effect  = "Allow"
+      resources = [
+        "arn:${local.partition}:logs:${var.aws_region}:${local.account_id}:log-group:/aws/batch/*"
+      ]
     }
   ]
 }
@@ -66,21 +74,21 @@ module "amazon_reviews_analyzer_batch_task_iam_role" {
   ]
   policy_statements = [
     {
-      sid     = "S3BronzeReadWrite"
-      actions = ["s3:PutObject", "s3:GetObject", "s3:ListBucket"]
-      effect  = "Allow"
-      resources = [
-        module.amazon_reviews_analyzer_datalake_s3_bucket.bucket_arn,
-        "${module.amazon_reviews_analyzer_datalake_s3_bucket.bucket_arn}/bronze/*"
-      ]
+      sid       = "S3BronzeObjects"
+      actions   = ["s3:PutObject", "s3:GetObject"]
+      effect    = "Allow"
+      resources = ["${module.amazon_reviews_analyzer_datalake_s3_bucket.bucket_arn}/bronze/*"]
     },
     {
-      sid     = "CloudWatchLogs"
-      actions = ["logs:CreateLogStream", "logs:PutLogEvents"]
-      effect  = "Allow"
-      resources = [
-        "arn:${local.partition}:logs:${var.aws_region}:${local.account_id}:log-group:/aws/batch/*"
-      ]
+      sid       = "S3BronzeList"
+      actions   = ["s3:ListBucket"]
+      effect    = "Allow"
+      resources = [module.amazon_reviews_analyzer_datalake_s3_bucket.bucket_arn]
+      condition = {
+        test     = "StringLike"
+        variable = "s3:prefix"
+        values   = ["bronze/*"]
+      }
     }
   ]
 }
