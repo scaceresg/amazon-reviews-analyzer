@@ -1,10 +1,6 @@
 name: terraform
 
 on:
-  pull_request:
-    paths:
-      - "terraform/**"
-      - ".github/workflows/terraform.yml"
   push:
     branches:
       - development
@@ -85,12 +81,11 @@ jobs:
       - name: Select workspace
         run: terraform workspace select -or-create ${{ needs.resolve-env.outputs.workspace }}
       - name: Plan
-        run: terraform plan -var-file="environments/${{ needs.resolve-env.outputs.workspace }}.tfvars"
+        run: terraform plan
 
-  # Manual apply: only on push (after merge), gated by a GitHub Environment with required reviewers.
   apply:
     needs: [resolve-env, plan]
-    if: github.event_name == 'push'
+    if: ${{ github.ref_name == 'development' || github.ref_name == 'master' }}
     runs-on: ubuntu-latest
     environment: ${{ needs.resolve-env.outputs.workspace }}
     defaults:
@@ -110,4 +105,4 @@ jobs:
       - name: Select workspace
         run: terraform workspace select -or-create ${{ needs.resolve-env.outputs.workspace }}
       - name: Apply
-        run: terraform apply -auto-approve -var-file="environments/${{ needs.resolve-env.outputs.workspace }}.tfvars"
+        run: terraform apply -auto-approve
