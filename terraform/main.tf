@@ -34,12 +34,12 @@ module "amazon_reviews_analyzer_athena_results_s3_bucket" {
 
 ## --- ECR Repository --- ##
 module "amazon_reviews_analyzer_ingestion_job_ecr_repository" {
-  source            = "./modules/ecr_repository"
-  repository_name   = "${var.project_name}-ingestion-job"
-  project_name      = var.project_name
-  aws_region        = var.aws_region
+  source               = "./modules/ecr_repository"
+  repository_name      = "${var.project_name}-ingestion-job"
+  project_name         = var.project_name
+  aws_region           = var.aws_region
   image_tag_mutability = "IMMUTABLE"
-  force_delete = true
+  force_delete         = true
 }
 
 ## --- Batch Ingestion Job --- ##
