@@ -39,6 +39,7 @@ module "amazon_reviews_analyzer_ingestion_job_ecr_repository" {
   project_name         = var.project_name
   aws_region           = var.aws_region
   image_tag_mutability = "IMMUTABLE"
+  scan_on_push         = true
   force_delete         = true
 }
 

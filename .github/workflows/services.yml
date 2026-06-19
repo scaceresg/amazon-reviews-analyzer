@@ -21,7 +21,6 @@ env:
   AWS_REGION: ${{ vars.AWS_REGION }}
   PROJECT_NAME: ${{ vars.PROJECT_NAME }}
   PROJECT_DIR_NAME: ${{ vars.PROJECT_DIR_NAME }}
-  ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
   DATALAKE_BUCKET_NAME: ${{ vars.DATALAKE_BUCKET_NAME }}
 
 jobs:
@@ -96,7 +95,7 @@ jobs:
           REGISTRY: ${{ steps.ecr.outputs.registry }}
           ENV: ${{ needs.resolve-env.outputs.env }}
         run: |
-          IMAGE="$REGISTRY/$ECR_REPOSITORY/$PROJECT_NAME-ingestion:$ENV-${GITHUB_SHA::7}"
+          IMAGE="$REGISTRY/${PROJECT_NAME}-ingestion-job-repository:$ENV-${GITHUB_SHA::7}"
           docker build -f $PROJECT_DIR_NAME/ingestion/Dockerfile -t "$IMAGE" .
           docker push "$IMAGE"
           echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
