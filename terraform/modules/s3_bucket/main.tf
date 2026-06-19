@@ -48,7 +48,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "bucket_lifecycle_config" {
           object_size_less_than    = filter.value.object_size_less_than
 
           dynamic "tag" {
-            for_each = filter.value.tag != null ? [filter.value.tag] : []
+            for_each = length(coalesce(filter.value.tags, [])) == 1 ? filter.value.tags : []
             content {
               key   = tag.value.key
               value = tag.value.value
@@ -56,7 +56,18 @@ resource "aws_s3_bucket_lifecycle_configuration" "bucket_lifecycle_config" {
           }
 
           dynamic "and" {
-            for_each = filter.value.and != null ? [filter.value.and] : []
+            for_each = (
+              length(coalesce(filter.value.tags, [])) > 1 ||
+              filter.value.and != null
+              ) ? [{
+                prefix                   = try(filter.value.and.prefix, null)
+                object_size_greater_than = try(filter.value.and.object_size_greater_than, null)
+                object_size_less_than    = try(filter.value.and.object_size_less_than, null)
+                tags = merge(
+                  try(filter.value.and.tags, {}),
+                  length(coalesce(filter.value.tags, [])) > 1 ? { for t in filter.value.tags : t.key => t.value } : {}
+                )
+            }] : []
             content {
               prefix                   = and.value.prefix
               object_size_greater_than = and.value.object_size_greater_than
@@ -115,8 +126,8 @@ resource "aws_s3_bucket_lifecycle_configuration" "bucket_lifecycle_config" {
 resource "aws_kms_key" "bucket_kms_key" {
   count                   = var.sse_algorithm == "aws:kms" ? 1 : 0
   description             = "KMS key for ${aws_s3_bucket.bucket.id} bucket"
-  deletion_window_in_days = 7
-  enable_key_rotation     = true
+  deletion_window_in_days = var.kms_key_deletion_window_in_days
+  enable_key_rotation     = var.kms_key_enable_key_rotation
   tags = {
     ProjectName = var.project_name
     Environment = terraform.workspace
