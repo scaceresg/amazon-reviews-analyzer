@@ -74,3 +74,9 @@ variable "repository_name" {
   description = "Name of the repository"
   type        = string
 }
+
+variable "scan_on_push" {
+  description = "If true, images are scanned for vulnerabilities after every push"
+  type        = bool
+  default     = true
+}
