@@ -56,15 +56,29 @@ variable "ignore_public_acls" {
   default     = true
 }
 
+variable "kms_key_deletion_window_in_days" {
+  description = "The number of days to wait before deleting the KMS key"
+  type        = number
+  default     = 7
+}
+
+variable "kms_key_enable_key_rotation" {
+  description = "If true, the KMS key will be enabled for key rotation"
+  type        = bool
+  default     = true
+}
+
 variable "lifecycle_rules" {
   description = <<EOF
-    List of lifecycle rules for the bucket. Supports expiration, transitions, noncurrent version management, 
+    List of lifecycle rules for the bucket. Supports expiration, transitions, noncurrent version management,
     and multipart upload cleanup.
+    For filter tags: use tags = [{ key, value }] for a single tag, or multiple entries (rendered via and.tags).
+    For multiple tags with other predicates (prefix, object size), use filter.and explicitly.
     For example:
     lifecycle_rules = [
         {
         id     = "bronze-transition"
-        filter = { prefix = "bronze/" }
+        filter = { prefix = "bronze/", tags = [{ key = "env", value = "prod" }] }
         transition = [
             { days = 30, storage_class = "STANDARD_IA" },
             { days = 90, storage_class = "GLACIER" }
@@ -85,10 +99,10 @@ variable "lifecycle_rules" {
       prefix                   = optional(string)
       object_size_greater_than = optional(number)
       object_size_less_than    = optional(number)
-      tag = optional(object({
+      tags = optional(list(object({
         key   = string
         value = string
-      }))
+      })))
       and = optional(object({
         prefix                   = optional(string)
         object_size_greater_than = optional(number)

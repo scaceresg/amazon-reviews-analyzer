@@ -16,7 +16,27 @@ variable "max_session_duration" {
 }
 
 variable "assume_role_statements" {
-  description = "Statements for the IAM role trust policy (who can assume this role)"
+  description = <<EOF
+    Statements for the IAM role trust policy (who can assume this role)
+    For example:
+    assume_role_statements = [
+      {
+        actions = ["sts:AssumeRole"]
+        effect  = "Allow"
+        principals = {
+          type        = "Service"
+          identifiers = ["ecs-tasks.amazonaws.com"]
+        }
+        conditions = [
+          {
+            test     = "StringEquals"
+            variable = "aws:SourceAccount"
+            values   = [local.account_id]
+          }
+        ]
+      }
+    ]
+    EOF
   type = list(object({
     sid     = optional(string)
     actions = optional(list(string))
@@ -29,18 +49,18 @@ variable "assume_role_statements" {
       type        = string
       identifiers = list(string)
     }))
-    condition = optional(object({
+    conditions = optional(list(object({
       test     = string
       variable = string
       values   = list(string)
-    }))
+    })))
   }))
 }
 
 variable "policy_statements" {
   description = <<EOF
   Trust policy statements defining who can assume this role.
-  Only principals/not_principals, condition, and not_actions are optional.
+  Only principals/not_principals, conditions, and not_actions are optional.
   Example:
   [
     {
@@ -58,13 +78,20 @@ variable "policy_statements" {
       effect  = "Allow"
       principals = {
         type        = "Federated"
-        identifiers = ["arn:aws:iam::123456789012:oidc-provider/token.actions.githubusercontent.com"]
+        identifiers = ["arn:aws:iam::<account-id>:oidc-provider/token.actions.githubusercontent.com"]
       }
-      condition = {
-        test     = "StringEquals"
-        variable = "token.actions.githubusercontent.com:aud"
-        values   = ["sts.amazonaws.com"]
-      }
+      conditions = [
+        {
+          test     = "StringEquals"
+          variable = "token.actions.githubusercontent.com:aud"
+          values   = ["sts.amazonaws.com"]
+        },
+        {
+          test     = "StringLike"
+          variable = "token.actions.githubusercontent.com:sub"
+          values   = ["repo:<org>/<repo>:*"]
+        }
+      ]
     }
   ]
   EOF
@@ -80,11 +107,11 @@ variable "policy_statements" {
       type        = string
       identifiers = list(string)
     }))
-    condition = optional(object({
+    conditions = optional(list(object({
       test     = string
       variable = string
       values   = list(string)
-    }))
+    })))
     not_actions = optional(list(string))
     resources   = optional(list(string))
   }))

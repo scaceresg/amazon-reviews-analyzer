@@ -28,6 +28,7 @@ variable "compute_environment_state" {
 variable "compute_resources" {
   description = <<EOF
     The details for the compute resources. Required if compute_environment_type is 'MANAGED'.
+    The type can be 'EC2', 'SPOT', 'FARGATE' or 'FARGATE_SPOT'.
     For example:
     compute_resources = {
         type = "FARGATE"
@@ -72,7 +73,7 @@ variable "eks_configuration" {
     The details for the EKS configuration.
     For example:
     eks_configuration = {
-        eks_cluster_arn = "arn:aws:eks:us-east-1:123456789012:cluster/my-cluster"
+        eks_cluster_arn = "arn:aws:eks:<region>:<account-id>:cluster/<cluster-name>"
         kubernetes_namespace = "my-namespace"
     }
     EOF
