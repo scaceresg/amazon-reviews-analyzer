@@ -120,8 +120,16 @@ jobs:
           BATCH_JOB_MEMORY: "2048"
           LOG_GROUP: /aws/batch/${{ vars.BATCH_JOB_NAME }}-${{ needs.resolve-env.outputs.env }}
         run: |
+          JOB_DEF_NAME="$BATCH_JOB_NAME-$ENV"
+
+          ACTIVE_ARNS=$(aws batch describe-job-definitions \
+            --job-definition-name "$JOB_DEF_NAME" \
+            --status ACTIVE \
+            --query 'jobDefinitions[].jobDefinitionArn' \
+            --output text)
+
           aws batch register-job-definition \
-            --job-definition-name "$BATCH_JOB_NAME-$ENV" \
+            --job-definition-name "$JOB_DEF_NAME" \
             --type container \
             --platform-capabilities FARGATE \
             --container-properties "$(jq -nc \
@@ -150,6 +158,10 @@ jobs:
                   }
                 }
               }')"
+
+          for arn in $ACTIVE_ARNS; do
+            aws batch deregister-job-definition --job-definition "$arn"
+          done
 
       # - name: Upload Glue scripts & LLM artifacts to S3
       #   env:
